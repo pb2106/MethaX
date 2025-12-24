@@ -1,0 +1,6 @@
+"""
+API routes package.
+"""
+from app.api.dashboard import router as dashboard_router
+
+__all__ = ["dashboard_router"]
