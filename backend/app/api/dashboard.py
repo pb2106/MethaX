@@ -5,6 +5,7 @@ from datetime import datetime, date
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, desc
+from pydantic import BaseModel
 
 from app.database import get_db
 from app.config import settings
@@ -23,6 +24,19 @@ from app.data.nifty_fetcher import NIFTYDataFetcher
 from app.utils.logger import logger
 
 router = APIRouter(prefix="/api/v1", tags=["dashboard"])
+
+
+class KillSwitchRequest(BaseModel):
+    """Kill switch activation request."""
+    activate: bool
+    reason: str = "manual_override"
+
+
+class KillSwitchResponse(BaseModel):
+    """Kill switch response."""
+    kill_switch_active: bool
+    message: str
+    timestamp: datetime
 
 
 @router.get("/health", response_model=HealthResponse)
@@ -154,4 +168,54 @@ async def get_dashboard(db: AsyncSession = Depends(get_db)) -> DashboardResponse
         account=account_data,
         market=market_data,
         risk_status=risk_status,
+    )
+
+
+@router.post("/kill-switch", response_model=KillSwitchResponse)
+async def activate_kill_switch(
+    request: KillSwitchRequest,
+    db: AsyncSession = Depends(get_db)
+) -> KillSwitchResponse:
+    """
+    Activate or deactivate kill switch.
+    
+    Args:
+        request: Kill switch activation request
+        db: Database session
+        
+    Returns:
+        Kill switch status
+    """
+    now = datetime.now(settings.timezone)
+    today = now.date()
+    
+    # Get or create today's account state
+    result = await db.execute(
+        select(AccountState).where(AccountState.date == today)
+    )
+    account = result.scalar_one_or_none()
+    
+    if not account:
+        account = AccountState(
+            date=today,
+            starting_capital=settings.default_capital,
+            daily_pnl=0,
+            daily_pnl_r=0,
+            trades_count=0,
+            wins=0,
+            losses=0,
+            kill_switch_triggered=request.activate,
+        )
+        db.add(account)
+    else:
+        account.kill_switch_triggered = request.activate
+        account.updated_at = now
+    
+    await db.commit()
+    logger.info(f"Kill switch {'activated' if request.activate else 'deactivated'} - Reason: {request.reason}")
+    
+    return KillSwitchResponse(
+        kill_switch_active=request.activate,
+        message=f"Kill switch {'activated' if request.activate else 'deactivated'} successfully",
+        timestamp=now,
     )

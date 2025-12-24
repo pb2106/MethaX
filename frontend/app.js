@@ -78,24 +78,24 @@ function initializeChart() {
         wickDownColor: '#ef5350',
     });
 
-    // Create EMA(10) line
+    // Create EMA(10) line - RED THIN
     state.ema10Series = state.chart.addLineSeries({
-        color: '#ff5252',
-        lineWidth: 2,
+        color: '#ef5350',
+        lineWidth: 1,
         title: 'EMA(10)',
     });
 
-    // Create EMA(20) line
+    // Create EMA(20) line - BLUE THIN
     state.ema20Series = state.chart.addLineSeries({
         color: '#2979ff',
-        lineWidth: 2,
+        lineWidth: 1,
         title: 'EMA(20)',
     });
 
-    // Create DEMA(100) line
+    // Create DEMA(100) line - BLACK THICK
     state.dema100Series = state.chart.addLineSeries({
-        color: '#ffd54f',
-        lineWidth: 2,
+        color: '#000000',
+        lineWidth: 3,
         title: 'DEMA(100)',
     });
 
@@ -198,29 +198,64 @@ async function updateDashboard() {
 async function loadChartData(timeframe) {
     try {
         const response = await fetch(`${CONFIG.API_BASE}/candles?timeframe=${timeframe}&limit=200`);
+        
+        if (!response.ok) {
+            console.warn(`API returned status ${response.status}`);
+            return;
+        }
+        
         const data = await response.json();
 
-        if (data.candles.length === 0) {
-            console.warn('No candle data available');
+        if (!data.candles || data.candles.length === 0) {
+            console.warn('No candle data available - fetching data from source');
+            // Try to fetch data from the update endpoint
+            await fetchAndUpdateData(timeframe);
             return;
         }
 
-        // Convert to TradingView format
-        const candleData = data.candles.map(c => ({
-            time: new Date(c.timestamp).getTime() / 1000,
-            open: c.open,
-            high: c.high,
-            low: c.low,
-            close: c.close,
-        }));
+        // Convert to TradingView format and sort by timestamp
+        // Convert UTC to IST (UTC+5:30) - add 5.5 hours
+        const candleData = data.candles
+            .map(c => {
+                const date = new Date(c.timestamp);
+                // Add 5.5 hours to convert from UTC to IST
+                const istTime = date.getTime() + (5.5 * 60 * 60 * 1000);
+                return {
+                    time: Math.floor(istTime / 1000),
+                    open: parseFloat(c.open),
+                    high: parseFloat(c.high),
+                    low: parseFloat(c.low),
+                    close: parseFloat(c.close),
+                };
+            })
+            .sort((a, b) => a.time - b.time);
+
+        if (candleData.length === 0) {
+            console.warn('No valid candle data');
+            return;
+        }
 
         state.candleSeries.setData(candleData);
 
-        // TODO: Calculate and display indicators when Phase 3 is complete
-        // For now, show placeholder
-        updateElement('ema-10', '--');
-        updateElement('ema-20', '--');
-        updateElement('dema-100', '--');
+        // Calculate and display EMAs
+        const ema10Data = calculateEMA(candleData, 10);
+        const ema20Data = calculateEMA(candleData, 20);
+        const dema100Data = calculateDEMA(candleData, 100);
+
+        if (ema10Data.length > 0) {
+            state.ema10Series.setData(ema10Data);
+            updateElement('ema-10', `₹${ema10Data[ema10Data.length - 1].value.toFixed(2)}`);
+        }
+
+        if (ema20Data.length > 0) {
+            state.ema20Series.setData(ema20Data);
+            updateElement('ema-20', `₹${ema20Data[ema20Data.length - 1].value.toFixed(2)}`);
+        }
+
+        if (dema100Data.length > 0) {
+            state.dema100Series.setData(dema100Data);
+            updateElement('dema-100', `₹${dema100Data[dema100Data.length - 1].value.toFixed(2)}`);
+        }
 
         // Fit chart to data
         state.chart.timeScale().fitContent();
@@ -228,6 +263,112 @@ async function loadChartData(timeframe) {
     } catch (error) {
         console.error('Error loading chart data:', error);
     }
+}
+
+// Fetch and update data from source
+async function fetchAndUpdateData(timeframe) {
+    try {
+        console.log('Fetching data from source...');
+        const response = await fetch(`${CONFIG.API_BASE}/update-data?timeframe=${timeframe}&days=7`, {
+            method: 'POST'
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            console.log(`✅ Data updated: ${result.candles_saved} candles saved`);
+            // Retry loading chart data
+            setTimeout(() => loadChartData(timeframe), 1000);
+        } else {
+            console.error('Failed to update data:', response.statusText);
+        }
+    } catch (error) {
+        console.error('Error fetching data:', error);
+    }
+}
+
+// Calculate Exponential Moving Average
+function calculateEMA(candleData, period) {
+    if (candleData.length < period) return [];
+
+    const ema = [];
+    const multiplier = 2 / (period + 1);
+
+    // Calculate simple moving average for first EMA value
+    let sum = 0;
+    for (let i = 0; i < period; i++) {
+        sum += candleData[i].close;
+    }
+    let currentEMA = sum / period;
+    ema.push({
+        time: candleData[period - 1].time,
+        value: currentEMA
+    });
+
+    // Calculate EMA for remaining values
+    for (let i = period; i < candleData.length; i++) {
+        currentEMA = (candleData[i].close - currentEMA) * multiplier + currentEMA;
+        ema.push({
+            time: candleData[i].time,
+            value: currentEMA
+        });
+    }
+
+    return ema;
+}
+
+// Calculate Double Exponential Moving Average (DEMA)
+function calculateDEMA(candleData, period) {
+    if (candleData.length < period) return [];
+    const closes = candleData.map(c => c.close);
+    const multiplier = 2 / (period + 1);
+
+    // Calculate first EMA
+    const ema1 = [];
+    let sum = 0;
+    for (let i = 0; i < period; i++) {
+        sum += closes[i];
+    }
+    let currentEMA = sum / period;
+    // Fill first period-1 with null for flat start
+    for (let i = 0; i < period - 1; i++) {
+        ema1.push(null);
+    }
+    ema1.push(currentEMA);
+    for (let i = period; i < closes.length; i++) {
+        currentEMA = (closes[i] - currentEMA) * multiplier + currentEMA;
+        ema1.push(currentEMA);
+    }
+
+    // Calculate second EMA on top of first EMA
+    const ema2 = [];
+    sum = 0;
+    for (let i = 0; i < period; i++) {
+        sum += ema1[period - 1 + i];
+    }
+    currentEMA = sum / period;
+    // Fill first 2*period-2 with null
+    for (let i = 0; i < period * 2 - 2; i++) {
+        ema2.push(null);
+    }
+    ema2.push(currentEMA);
+    for (let i = period * 2 - 1; i < ema1.length; i++) {
+        currentEMA = (ema1[i] - currentEMA) * multiplier + currentEMA;
+        ema2.push(currentEMA);
+    }
+
+    // Build DEMA result: 2 * EMA1 - EMA2, only from index period-1
+    const dema = [];
+    for (let i = 0; i < candleData.length; i++) {
+        if (i < period - 1 || ema1[i] === null || ema2[i] === null) {
+            // Don't plot for first period-1 candles
+            continue;
+        }
+        dema.push({
+            time: candleData[i].time,
+            value: 2 * ema1[i] - ema2[i]
+        });
+    }
+    return dema;
 }
 
 // Switch timeframe
