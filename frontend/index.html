@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MethaX - NIFTY Options Trading Platform</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">
+                    <h1>MethaX</h1>
+                    <span class="logo-subtitle">Options Trading</span>
+                </div>
+                <div class="header-stats">
+                    <div class="stat-card">
+                        <span class="stat-label">NIFTY</span>
+                        <span class="stat-value" id="nifty-price">--</span>
+                        <span class="stat-change" id="nifty-change">--</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-label">Capital</span>
+                        <span class="stat-value" id="capital">₹1,00,000</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-label">P&L Today</span>
+                        <span class="stat-value" id="daily-pnl">₹0.00</span>
+                        <span class="stat-change" id="daily-pnl-r">0.00R</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-label">Status</span>
+                        <span class="status-badge" id="market-status">Loading...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="container">
+            <div class="grid">
+                <!-- Left Panel - Chart -->
+                <div class="chart-panel">
+                    <div class="panel-header">
+                        <h2>NIFTY 50 Live Chart</h2>
+                        <div class="chart-controls">
+                            <div class="timeframe-selector">
+                                <button class="timeframe-btn active" data-timeframe="5m">5m</button>
+                                <button class="timeframe-btn" data-timeframe="15m">15m</button>
+                                <button class="timeframe-btn" data-timeframe="1h">1h</button>
+                                <button class="timeframe-btn" data-timeframe="1d">1d</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <div id="tradingview-chart"></div>
+                    </div>
+                    <div class="chart-info">
+                        <div class="info-grid">
+                            <div class="info-item">
+                                <span class="info-label">EMA(10)</span>
+                                <span class="info-value ema-10" id="ema-10">--</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">EMA(20)</span>
+                                <span class="info-value ema-20" id="ema-20">--</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">DEMA(100)</span>
+                                <span class="info-value dema-100" id="dema-100">--</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Trend Bias</span>
+                                <span class="info-value" id="trend-bias">
+                                    <span class="bias-badge">NEUTRAL</span>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Panel - Trading Info -->
+                <div class="trading-panel">
+                    <!-- Risk Status Card -->
+                    <div class="card risk-card">
+                        <div class="card-header">
+                            <h3>Risk Status</h3>
+                            <button class="kill-switch-btn" id="kill-switch-btn">
+                                🛑 KILL SWITCH
+                            </button>
+                        </div>
+                        <div class="card-body">
+                            <div class="risk-status">
+                                <div class="risk-item">
+                                    <span class="risk-label">Can Trade</span>
+                                    <span class="risk-value" id="can-trade">
+                                        <span class="badge badge-success">YES</span>
+                                    </span>
+                                </div>
+                                <div class="risk-item">
+                                    <span class="risk-label">Reason</span>
+                                    <span class="risk-value" id="trade-reason">All systems operational</span>
+                                </div>
+                                <div class="risk-item">
+                                    <span class="risk-label">Trades Today</span>
+                                    <span class="risk-value" id="trades-count">0 / 2</span>
+                                </div>
+                                <div class="risk-item">
+                                    <span class="risk-label">Daily Loss Limit</span>
+                                    <span class="risk-value" id="loss-limit">0.00R / 1.00R</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Trade Candidates Card -->
+                    <div class="card candidates-card">
+                        <div class="card-header">
+                            <h3>Trade Signals</h3>
+                            <span class="refresh-icon" id="refresh-signals">↻</span>
+                        </div>
+                        <div class="card-body">
+                            <div id="candidates-list" class="candidates-list">
+                                <div class="empty-state">
+                                    <span class="empty-icon">📊</span>
+                                    <p>No valid signals detected</p>
+                                    <small>Waiting for entry conditions...</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Open Positions Card -->
+                    <div class="card positions-card">
+                        <div class="card-header">
+                            <h3>Open Positions</h3>
+                            <span class="position-count" id="position-count">0</span>
+                        </div>
+                        <div class="card-body">
+                            <div id="positions-list" class="positions-list">
+                                <div class="empty-state">
+                                    <span class="empty-icon">💼</span>
+                                    <p>No open positions</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Trade History Section -->
+            <div class="history-section">
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Trade History</h3>
+                        <div class="history-stats">
+                            <span class="stat-pill">Win Rate: <strong id="win-rate">--</strong></span>
+                            <span class="stat-pill">Total P&L: <strong id="total-pnl">₹0.00</strong></span>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-container">
+                            <table class="trades-table">
+                                <thead>
+                                    <tr>
+                                        <th>Time</th>
+                                        <th>Direction</th>
+                                        <th>Strike</th>
+                                        <th>Entry</th>
+                                        <th>Exit</th>
+                                        <th>P&L</th>
+                                        <th>R-Multiple</th>
+                                        <th>Reason</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="trades-history-body">
+                                    <tr class="empty-row">
+                                        <td colspan="8" class="text-center">
+                                            No trades yet today
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-left">
+                    <span>MethaX v1.0.0</span>
+                    <span class="separator">•</span>
+                    <span>Virtual Trading Platform</span>
+                    <span class="separator">•</span>
+                    <span id="connection-status" class="status-indicator">
+                        <span class="status-dot"></span>
+                        Connecting...
+                    </span>
+                </div>
+                <div class="footer-right">
+                    <span>Last Update: <span id="last-update">--</span></span>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="https://unpkg.com/lightweight-charts@4.1.0/dist/lightweight-charts.standalone.production.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

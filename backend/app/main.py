@@ -7,7 +7,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.database import init_db, close_db
-from app.api import dashboard_router
+from app.api import dashboard_router, market_data_router
+from app.data.nifty_fetcher import NIFTYDataFetcher
 from app.utils.logger import logger
 
 
@@ -55,6 +56,7 @@ app.add_middleware(
 
 # Register routers
 app.include_router(dashboard_router)
+app.include_router(market_data_router)
 
 # Root endpoint
 @app.get("/")

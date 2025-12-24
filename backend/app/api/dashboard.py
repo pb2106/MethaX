@@ -4,7 +4,7 @@ Dashboard and health check endpoints.
 from datetime import datetime, date
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, desc
 
 from app.database import get_db
 from app.config import settings
@@ -18,7 +18,8 @@ from app.utils.validators import (
     is_time_valid_for_trading,
     get_minutes_to_close,
 )
-from app.models import AccountState, Trade
+from app.models import AccountState, Trade, Candle
+from app.data.nifty_fetcher import NIFTYDataFetcher
 from app.utils.logger import logger
 
 router = APIRouter(prefix="/api/v1", tags=["dashboard"])
@@ -101,9 +102,21 @@ async def get_dashboard(db: AsyncSession = Depends(get_db)) -> DashboardResponse
         trades_today=account.trades_count,
     )
     
-    # Build market data (mock for now)
-    # TODO: Replace with real NIFTY spot price
-    nifty_spot = 22347.50
+    # Build market data with REAL NIFTY price
+    fetcher = NIFTYDataFetcher()
+    nifty_spot = fetcher.get_current_price()
+    
+    if nifty_spot is None:
+        # Fallback to last known price from database if Yahoo Finance is unavailable
+        result = await db.execute(
+            select(Candle)
+            .where(Candle.symbol == "NIFTY")
+            .order_by(desc(Candle.timestamp))
+            .limit(1)
+        )
+        last_candle = result.scalar_one_or_none()
+        nifty_spot = float(last_candle.close) if last_candle else 22347.50
+        logger.warning(f"Using fallback price: {nifty_spot}")
     
     market_data = DashboardMarket(
         nifty_spot=nifty_spot,
